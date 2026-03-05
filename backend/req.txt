@@ -10,3 +10,6 @@ fastapi[standard]
 
 # requests
 httpx
+
+# cache
+redis[hiredis]

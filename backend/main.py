@@ -120,21 +120,25 @@ async def fetch_satellite_api():
 async def fetch_fire_perimeters():
     """
     Returns GeoJSON of fire perimeter data from NIFC
+    Use state=CA to filter for California only
     """
     params = {
-        "where": "1=1",  # SQL-style filter
-        "outFields": "*",  # specify which fields to return
+        "where": "1=1",
+        "outFields": "*",
         "returnGeometry": "true",
-        "f": "geojson",  # format
-        "outSR": 4326,  # spatial reference WGS84 latitude/longitude (EPSG:4326)
-        "resultRecordCount": 2000,  # page size
+        "f": "geojson",
+        "outSR": 4326,
+        "resultRecordCount": 2000,
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    if state and state.upper() == "CA":
+        url = "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/arcgis/rest/services/CA_Perimeters_NIFC_FIRIS_public_view/FeatureServer/0/query"
+    else:
         url = "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.get(url, params=params)
 
-        # Check for success and parse JSON
         r.raise_for_status()
         geojson = r.json()
 
@@ -144,21 +148,26 @@ async def fetch_fire_perimeters():
 async def fetch_prescribed_fires():
     """
     Returns GeoJSON of prescribed fires from Watch Duty
+    Use state=CA to filter for California only
     """
     params = {
-        "where": "1=1",  # SQL-style filter
-        "outFields": "*",  # specify which fields to return
+        "where": "1=1",
+        "outFields": "*",
         "returnGeometry": "true",
-        "f": "geojson",  # format
-        "outSR": 4326,  # spatial reference WGS84 latitude/longitude (EPSG:4326)
-        "resultRecordCount": 2000,  # page size
+        "f": "geojson",
+        "outSR": 4326,
+        "resultRecordCount": 2000,
     }
+
+    if state and state.upper() == "CA":
+        params["geometry"] = "-124.5,32.5,-114.1,42.0"
+        params["geometryType"] = "esriGeometryEnvelope"
+        params["spatialRel"] = "esriSpatialRelIntersects"
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         url = "https://services5.arcgis.com/VNhSlpl1umSknM3q/arcgis/rest/services/Watch_Duty_Prescribed_Fires/FeatureServer/0/query"
         r = await client.get(url, params=params)
 
-        # Check for success and parse JSON
         r.raise_for_status()
         geojson = r.json()
 
