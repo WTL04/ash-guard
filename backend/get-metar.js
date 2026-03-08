@@ -2,9 +2,43 @@
 // get-metar.js
 // 3/1/'26
 
+// METAR stands for METeorological Aerodrome Report
+
 // To run: node get-metar.js
 
+// uvicorn is the server
+// fastapi is the framework.
+
 /*
+There are 22 weather station IDs returning a 404 Error as of 3/4/'26:
+
+const 404CaliforniaStationIDs = [
+  "KNGZ", // Alameda NAS, CA
+  "KBUO", // Beaumont, CA
+  "KO57", // Bridgeport, CA
+  "KBNY", // Burney, CA
+  "KCXL", // Calexico Intl, CA
+  "KCZZ", // Campo, CA
+  "KO59", // Cedarville, CA
+  "K9L2", // Edwards N-Aux, CA
+  "KEKA", // Eureka/Murray, CA
+  "KO18", // Hanford, CA *There are two Hanfords so this one is likely deprecated.
+  "KHES", // Healdsburg, CA
+  "KHGT", // Hunter Ligget, CA
+  "KCQT", // Los Angeles, CA
+  "K3A6", // Newhall, CA
+  "KL52", // Oceano Cnty, CA
+  "KNXF", // Oceanside/Red-B, CA
+  "KGXA", // Palmdale, CA *There are also two Palmdales so this one is also likely deprecated.
+  "K87Q", // Pt. Piedras Blan, CA
+  "KO88", // Rio Vista, CA
+  "KO87", // Shelter Cove, CA
+  "KTRM", // Thermal/Palm Spg, CA
+  "KXVW", // Vandenberg Range, CA
+];
+*/
+
+
 // Actual list of 165 weather stations.
 const californiaStationIDs = [
   "KNGZ", // Alameda NAS, CA
@@ -173,8 +207,9 @@ const californiaStationIDs = [
   "KWVI", // Watsonville, CA
   "KO54"  // Weaverville, CA
 ];
-*/
 
+
+/*
 // Small list of 10 to test.
 const californiaStationIDs = [
   "KNGZ", // Alameda NAS, CA
@@ -189,11 +224,13 @@ const californiaStationIDs = [
   "KBYS", // Bicycle Lake, CA
   "KL35", // Big Bear City, CA
 ];
+*/
 
 
 // Printing an individual array entry.
 // console.log(californiaStationIDs[0]);
 
+// Import the built in Filesystem 'fs' module.
 const fs = require('fs');
 
 async function fetchAllWeather() {
@@ -211,14 +248,34 @@ async function fetchAllWeather() {
   for (const id of californiaStationIDs) {
     try {
       console.log(`Fetching data for ${id}...`);
-      const response = await fetch(`https://api.weather.gov/stations/${id}/observations/latest`, { headers });
+
+      // This causes null values
+      //const response = await fetch(`https://api.weather.gov/stations/${id}/observations/latest`, { headers });
+
+      // This eliminates null values but causes huge files.
+      // const response = await fetch(`https://api.weather.gov/stations/${id}/observations`, { headers });
       
+      /*
+      const data = await response.json();
+      allWeatherData[id] = data; // Store the data under the station's ID
+      */
+
+      // This is the best of both worlds
+      // // Fetch the recent observations instead of just the latest
+      const response = await fetch(`https://api.weather.gov/stations/${id}/observations`, { headers });
+      const data = await response.json();
+
+      // Find the first (newest) observation where the temperature is NOT null
+      const bestObservation = data.features.find(obs => obs.properties.temperature.value !== null);
+
+      // Store that good observation!
+      allWeatherData[id] = bestObservation;
+
       if (!response.ok) {
         throw new Error(`HTTP Error: ${response.status}`);
       }
 
-      const data = await response.json();
-      allWeatherData[id] = data; // Store the data under the station's ID
+
 
       // 3. Pause for 500 milliseconds to respect NWS rate limits
       await new Promise(resolve => setTimeout(resolve, 500));
