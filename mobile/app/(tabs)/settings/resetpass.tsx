@@ -58,8 +58,6 @@ export default function ResetPassScreen() {
         return;
       }
 
-      // If later you enable Google/Apple: they won't have a password to change.
-      // For now, we just guard so it doesn't crash.
       if (!user.email) {
         Alert.alert("Account type not supported", "This account doesn’t use email/password.");
         return;
