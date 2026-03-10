@@ -56,9 +56,10 @@ def dicts_to_geojson(data_list: list) -> dict:
 """
 
 
-async def fetch_satellite_api():
+async def fetch_satellite_api(state: str | None = None):
     """
     Returns discionary of satellite detected hotspots from 3 satellite sources
+    Set state="CA" for California only, otherwise returns global data
     """
 
     # get your map key here https://firms.modaps.eosdis.nasa.gov/api/area/html
@@ -70,6 +71,12 @@ async def fetch_satellite_api():
 
     # API variables
     cali_bbox = "-124.5,32.5,-114.1,42.1"
+    world_bbox = "-180,-90,180,90"
+    bbox = cali_bbox if state and state.upper() == "CA" else world_bbox
+    if state and state.upper() == "CA":
+        logger.info("Fetching California satellite fire data")
+    else:
+        logger.info("Fetching global satellite fire data")
     day_range = 1
     today = str(date.today())
 
@@ -89,7 +96,7 @@ async def fetch_satellite_api():
     async with httpx.AsyncClient(timeout=30.0) as client:
         for satellite in satellites:
             # returns in CSV format
-            url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{map_key}/{satellite}/{cali_bbox}/{day_range}/{today}"
+            url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{map_key}/{satellite}/{bbox}/{day_range}/{today}"
             r = await client.get(url)
 
             if r.status_code == 200:
@@ -117,48 +124,60 @@ async def fetch_satellite_api():
     return geojson
 
 
-async def fetch_fire_perimeters():
+async def fetch_fire_perimeters(state: str | None = None):
     """
     Returns GeoJSON of fire perimeter data from NIFC
+    Set state="CA" for California only, otherwise returns global data
     """
     params = {
-        "where": "1=1",  # SQL-style filter
-        "outFields": "*",  # specify which fields to return
+        "where": "1=1",
+        "outFields": "*",
         "returnGeometry": "true",
-        "f": "geojson",  # format
-        "outSR": 4326,  # spatial reference WGS84 latitude/longitude (EPSG:4326)
-        "resultRecordCount": 2000,  # page size
+        "f": "geojson",
+        "outSR": 4326,
+        "resultRecordCount": 2000,
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    if state and state.upper() == "CA":
+        url = "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/arcgis/rest/services/CA_Perimeters_NIFC_FIRIS_public_view/FeatureServer/0/query"
+        logger.info("Fetching California fire perimeters")
+    else:
         url = "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query"
+        logger.info("Fetching USA fire perimeters")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.get(url, params=params)
 
-        # Check for success and parse JSON
         r.raise_for_status()
         geojson = r.json()
 
     return geojson
 
 
-async def fetch_prescribed_fires():
+async def fetch_prescribed_fires(state: str | None = None):
     """
     Returns GeoJSON of prescribed fires from Watch Duty
+    Set state="CA" for California only, otherwise returns global data
     """
     params = {
-        "where": "1=1",  # SQL-style filter
-        "outFields": "*",  # specify which fields to return
+        "where": "1=1",
+        "outFields": "*",
         "returnGeometry": "true",
-        "f": "geojson",  # format
-        "outSR": 4326,  # spatial reference WGS84 latitude/longitude (EPSG:4326)
-        "resultRecordCount": 2000,  # page size
+        "f": "geojson",
+        "outSR": 4326,
+        "resultRecordCount": 2000,
     }
+
+    if state and state.upper() == "CA":
+        params["geometry"] = "-124.5,32.5,-114.1,42.0"
+        params["geometryType"] = "esriGeometryEnvelope"
+        params["spatialRel"] = "esriSpatialRelIntersects"
+        logger.info("Fetching California prescribed fires")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         url = "https://services5.arcgis.com/VNhSlpl1umSknM3q/arcgis/rest/services/Watch_Duty_Prescribed_Fires/FeatureServer/0/query"
         r = await client.get(url, params=params)
 
-        # Check for success and parse JSON
         r.raise_for_status()
         geojson = r.json()
 
@@ -172,7 +191,9 @@ async def data_ingestion_worker():
         try:
             # run api calls
             results = await asyncio.gather(
-                fetch_satellite_api(), fetch_fire_perimeters(), fetch_prescribed_fires()
+                fetch_satellite_api(state="CA"),
+                fetch_fire_perimeters(state="CA"),
+                fetch_prescribed_fires(state="CA"),
             )
 
             # cache the payload
